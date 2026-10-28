@@ -93,3 +93,71 @@
     transform: translateY(0);
   }
 }
+/* ── Email verification (one-time code) ─────────────────────────────────── */
+
+/* Informational note (same shape as auth-success / auth-error) */
+.auth-info {
+  background: var(--info-light);
+  border: 1px solid var(--info-color);
+  color: var(--info-color);
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  text-align: center;
+  animation: slideDown 0.3s ease;
+}
+
+/* Big, centred, evenly spaced digits for the 6-digit code */
+.otp-input {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 1.6rem;
+  font-weight: 600;
+  letter-spacing: 0.5em;
+  padding-left: calc(var(--spacing-md) + 0.5em);  /* balances the trailing letter-spacing */
+}
+
+.otp-input::placeholder {
+  letter-spacing: 0.5em;
+}
+
+/* Row of small text-style actions under the form (resend, change email) */
+.auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--spacing-xs) var(--spacing-lg);
+  margin-bottom: var(--spacing-md);
+}
+
+.auth-link-button {
+  background: none;
+  border: none;
+  padding: var(--spacing-xs) 0;
+  font-family: var(--font-primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--primary-color);
+  cursor: pointer;
+}
+
+.auth-link-button:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.auth-link-button:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* "Verify your email" link shown inside the login error box */
+.auth-error-action {
+  margin-top: 0.5rem;
+  font-weight: 600;
+}
+
+.auth-error-action a {
+  color: inherit;
+  text-decoration: underline;
+}

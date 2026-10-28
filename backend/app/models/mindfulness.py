@@ -9,7 +9,7 @@ class MeditationSession(Base):
     __tablename__ = "meditation_sessions"
 
     id = Column(Uuid, primary_key=True, default=uuid.uuid4)
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(Uuid, ForeignKey("users.id"))
     session_type = Column(String(50), default="meditation")  # meditation, minigame
     duration_seconds = Column(Integer, nullable=True)
     completed = Column(Boolean, default=False)

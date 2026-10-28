@@ -9,7 +9,7 @@ class WorkoutSession(Base):
     __tablename__ = "workout_sessions"
 
     id = Column(Uuid, primary_key=True, default=uuid.uuid4)
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(Uuid, ForeignKey("users.id"))
     exercise_id = Column(Uuid, ForeignKey("exercises.id"))
     started_at = Column(DateTime, default=datetime.utcnow)
     ended_at = Column(DateTime, nullable=True)

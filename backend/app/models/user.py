@@ -1,25 +1,29 @@
 import uuid
 
-from sqlalchemy import Boolean, Column, Integer, String, DateTime, Float, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, Column, Integer, String, DateTime, Float, ForeignKey, Uuid
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
+from sqlalchemy.sql import false, func
 from ..database import Base
 
 
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    id = Column(Uuid, primary_key=True, default=uuid.uuid4, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     username = Column(String, unique=True, index=True, nullable=True)
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
+    # False until the emailed one-time code is confirmed (see EmailVerification)
+    is_verified = Column(Boolean, nullable=False, default=False, server_default=false())
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
     profile = relationship("UserProfile", back_populates="user", uselist=False)
+    email_verification = relationship(
+        "EmailVerification", back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )
     workout_sessions = relationship("WorkoutSession", back_populates="user")
     food_logs = relationship("FoodLog", back_populates="user")
     meal_logs = relationship("MealLog", back_populates="user")
@@ -38,8 +42,8 @@ class User(Base):
 class UserProfile(Base):
     __tablename__ = "user_profiles"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, unique=True)
+    id = Column(Uuid, primary_key=True, default=uuid.uuid4, index=True)
+    user_id = Column(Uuid, ForeignKey("users.id"), nullable=False, unique=True)
 
     # Personal Info
     age = Column(Integer, nullable=True)
@@ -49,7 +53,11 @@ class UserProfile(Base):
 
     # Fitness Info
     fitness_goal = Column(String, nullable=True)
+    fitness_level = Column(String, nullable=True, default="beginner")  # beginner, intermediate, advanced
     activity_level = Column(String, nullable=True)
+
+    # Avatar (exposed by the API as `profile_picture`)
+    profile_image = Column(String, nullable=True)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -1,18 +1,11 @@
-from pathlib import Path
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 from app.config import settings
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-LOCAL_SQLITE_DB = f"sqlite+aiosqlite:///{BASE_DIR / 'fitflow.db'}"
-
-selected_database_url = settings.DATABASE_URL
-if settings.DEBUG and "supabase.com" in selected_database_url:
-    selected_database_url = LOCAL_SQLITE_DB
-
-# Create async engine
+# Create async engine from the configured DATABASE_URL (postgres:// and
+# postgresql:// are normalised to the asyncpg driver by the settings).
 engine = create_async_engine(
-    selected_database_url,
+    settings.ASYNC_DATABASE_URL,
     echo=settings.DEBUG,  # Shows SQL queries in terminal when DEBUG=True
     future=True
 )

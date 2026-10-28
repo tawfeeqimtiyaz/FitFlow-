@@ -3,6 +3,7 @@ from sqlalchemy import select
 from typing import Optional
 from app.models.user import User, UserProfile
 from app.schemas.user import ProfileCreate, ProfileUpdate
+from app.utils.ids import to_uuid
 
 
 # ── Field name map ────────────────────────────────────────────────────────────
@@ -27,6 +28,7 @@ class UserService:
         db: AsyncSession, user_id: str
     ) -> Optional[UserProfile]:
         """Get user profile"""
+        user_id = to_uuid(user_id)
         result = await db.execute(
             select(UserProfile).where(UserProfile.user_id == user_id)
         )
@@ -39,6 +41,7 @@ class UserService:
         profile_data: ProfileCreate
     ) -> UserProfile:
         """Create user profile"""
+        user_id = to_uuid(user_id)
 
         # Check if profile already exists
         existing = await UserService.get_profile(db, user_id)
@@ -78,6 +81,7 @@ class UserService:
         profile_data: ProfileUpdate
     ) -> Optional[UserProfile]:
         """Update user profile"""
+        user_id = to_uuid(user_id)
 
         result = await db.execute(
             select(UserProfile).where(UserProfile.user_id == user_id)

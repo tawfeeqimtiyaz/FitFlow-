@@ -15,7 +15,7 @@ class WorkoutSessionEnd(BaseModel):
 
 class WorkoutSessionResponse(BaseModel):
     id: UUID
-    user_id: int
+    user_id: UUID
     exercise_id: UUID
     started_at: datetime
     ended_at: Optional[datetime]

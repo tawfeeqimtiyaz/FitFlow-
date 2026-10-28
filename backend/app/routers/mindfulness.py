@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import List
+from uuid import UUID
 from datetime import datetime
 from app.database import get_db
 from app.models.user import User
@@ -36,7 +37,7 @@ async def start_session(
 
 @router.post("/sessions/{session_id}/end", response_model=MeditationSessionResponse)
 async def end_session(
-    session_id: str,
+    session_id: UUID,
     session_data: MeditationSessionEnd,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)

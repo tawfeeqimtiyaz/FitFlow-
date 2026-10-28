@@ -37,7 +37,7 @@ class UserGoal(Base):
     __tablename__ = "user_goals"
 
     id      = Column(Uuid, primary_key=True, default=uuid.uuid4)
-    user_id = Column(Integer, ForeignKey("users.id"), unique=True)
+    user_id = Column(Uuid, ForeignKey("users.id"), unique=True)
 
     # Goal Settings
     goal_type      = Column(String(50), default=GoalType.MAINTENANCE.value)
@@ -62,7 +62,7 @@ class MealLog(Base):
     __tablename__ = "meal_logs"
 
     id      = Column(Uuid, primary_key=True, default=uuid.uuid4)
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(Uuid, ForeignKey("users.id"))
 
     # Meal Info
     meal_type    = Column(String(50), default=MealType.SNACK.value)
@@ -97,7 +97,7 @@ class DailyIntake(Base):
     __tablename__ = "daily_intakes"
 
     id      = Column(Uuid, primary_key=True, default=uuid.uuid4)
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(Uuid, ForeignKey("users.id"))
 
     intake_date = Column(Date, default=date.today, index=True)
 
@@ -121,7 +121,7 @@ class WaterLog(Base):
     __tablename__ = "water_logs"
 
     id      = Column(Uuid, primary_key=True, default=uuid.uuid4)
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(Uuid, ForeignKey("users.id"))
 
     amount    = Column(Float, nullable=False)  # in ml
     logged_at = Column(DateTime, default=datetime.utcnow)

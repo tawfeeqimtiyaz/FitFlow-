@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date, time
+from uuid import UUID
 
 
 # --- Symptom Schemas ---
@@ -14,7 +15,7 @@ class SymptomCreate(BaseModel):
 
 class SymptomResponse(BaseModel):
     id: int
-    user_id: int
+    user_id: UUID
     name: str
     severity: Optional[int]
     description: Optional[str]
@@ -47,7 +48,7 @@ class DoctorVisitCreate(BaseModel):
 
 class DoctorVisitResponse(BaseModel):
     id: int
-    user_id: int
+    user_id: UUID
     doctor_name: str
     specialty: Optional[str]
     visit_date: date
@@ -89,7 +90,7 @@ class MedicationUpdate(BaseModel):
 
 class MedicationResponse(BaseModel):
     id: int
-    user_id: int
+    user_id: UUID
     name: str
     dosage: Optional[str]
     frequency: Optional[str]
@@ -116,7 +117,7 @@ class ReminderCreate(BaseModel):
 class ReminderResponse(BaseModel):
     id: int
     medication_id: int
-    user_id: int
+    user_id: UUID
     reminder_time: time
     is_active: bool
     created_at: datetime

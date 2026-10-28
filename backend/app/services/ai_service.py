@@ -82,7 +82,7 @@ You are part of a fitness app so always tie advice back to safe fitness practice
 
         try:
             model = genai.GenerativeModel(
-                model_name="gemini-1.5-flash",
+                model_name=settings.GEMINI_MODEL,
                 system_instruction=AIService.MEDICAL_SYSTEM_PROMPT
             )
 

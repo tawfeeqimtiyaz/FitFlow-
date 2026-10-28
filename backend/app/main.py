@@ -21,13 +21,13 @@ async def lifespan(app: FastAPI):
     # ── Startup ───────────────────────────────────────────
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)  # ✅ create tables
-    print(f"{settings.APP_NAME} started — tables ready")
+    print(f"{settings.APP_NAME} started - tables ready")
     
     yield  # ← app runs here
 
     # ── Shutdown ──────────────────────────────────────────
     await engine.dispose()                         # ✅ clean DB connection pool
-    print(f"🛑 {settings.APP_NAME} shutting down")
+    print(f"{settings.APP_NAME} shutting down")
 
 
 # Create FastAPI app
@@ -53,6 +53,9 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Browsers hide non-standard response headers from cross-origin JS unless
+    # they are exposed; the verification UI reads Retry-After for its cooldown.
+    expose_headers=["Retry-After"],
 )
 
 

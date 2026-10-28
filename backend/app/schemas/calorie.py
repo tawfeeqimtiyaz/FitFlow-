@@ -51,7 +51,7 @@ class GoalUpdate(BaseModel):
 
 class GoalResponse(BaseModel):
     id:             UUID
-    user_id:        int
+    user_id:        UUID
     goal_type:      str
     target_weight:  Optional[float] = None
     activity_level: str
@@ -135,7 +135,7 @@ class MealLogCreate(BaseModel):
 
 class MealLogResponse(BaseModel):
     id:           UUID
-    user_id:      int
+    user_id:      UUID
     meal_type:    str
     food_name:    str
     serving_size: Optional[str]   = None    # ✅ Added defaults
@@ -160,7 +160,7 @@ class MealLogResponse(BaseModel):
 
 class DailyIntakeResponse(BaseModel):
     id:             Optional[UUID] = None   # ✅ FIXED: None when no DB row exists
-    user_id:        Optional[int] = None    # ✅ FIXED: None for empty days
+    user_id:        Optional[UUID] = None    # ✅ FIXED: None for empty days
     intake_date:    date
     total_calories: float = 0
     total_protein:  float = 0
@@ -194,7 +194,7 @@ class WaterLogCreate(BaseModel):
 
 class WaterLogResponse(BaseModel):
     id:        UUID
-    user_id:   int
+    user_id:   UUID
     amount:    float
     logged_at: datetime
     log_date:  date

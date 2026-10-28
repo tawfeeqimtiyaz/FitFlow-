@@ -4,6 +4,7 @@ from typing import List, Optional
 from datetime import datetime
 from app.models.exercise import ExerciseCategory, Exercise
 from app.models.workout import WorkoutSession
+from app.utils.ids import to_uuid
 
 
 class WorkoutService:
@@ -22,7 +23,7 @@ class WorkoutService:
     ) -> List[Exercise]:
         """Get exercises by category and optional difficulty"""
         
-        query = select(Exercise).where(Exercise.category_id == category_id)
+        query = select(Exercise).where(Exercise.category_id == to_uuid(category_id))
         
         if difficulty:
             query = query.where(Exercise.difficulty_level == difficulty)
@@ -47,8 +48,8 @@ class WorkoutService:
         """Start a new workout session"""
         
         session = WorkoutSession(
-            user_id=user_id,
-            exercise_id=exercise_id,
+            user_id=to_uuid(user_id),
+            exercise_id=to_uuid(exercise_id),
             started_at=datetime.utcnow()
         )
         
@@ -70,8 +71,8 @@ class WorkoutService:
         
         result = await db.execute(
             select(WorkoutSession).where(
-                WorkoutSession.id == session_id,
-                WorkoutSession.user_id == user_id
+                WorkoutSession.id == to_uuid(session_id),
+                WorkoutSession.user_id == to_uuid(user_id)
             )
         )
         session = result.scalar_one_or_none()
@@ -109,7 +110,7 @@ class WorkoutService:
         """Get user's workout history"""
         result = await db.execute(
             select(WorkoutSession)
-            .where(WorkoutSession.user_id == user_id)
+            .where(WorkoutSession.user_id == to_uuid(user_id))
             .order_by(WorkoutSession.started_at.desc())
             .limit(limit)
         )

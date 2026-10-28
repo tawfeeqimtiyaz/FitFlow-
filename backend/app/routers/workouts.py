@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
+from uuid import UUID
 from app.database import get_db
 from app.models.user import User
 from app.schemas.exercise import ExerciseCategoryResponse, ExerciseResponse
@@ -20,7 +21,7 @@ async def get_categories(db: AsyncSession = Depends(get_db)):
 
 @router.get("/categories/{category_id}/exercises", response_model=List[ExerciseResponse])
 async def get_exercises_by_category(
-    category_id: str,
+    category_id: UUID,
     difficulty: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
@@ -60,7 +61,7 @@ async def start_workout(
 
 @router.post("/sessions/{session_id}/end", response_model=WorkoutSessionResponse)
 async def end_workout(
-    session_id: str,
+    session_id: UUID,
     session_data: WorkoutSessionEnd,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)

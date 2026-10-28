@@ -9,7 +9,7 @@ class FoodLog(Base):
     __tablename__ = "food_logs"
 
     id = Column(Uuid, primary_key=True, default=uuid.uuid4)
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(Uuid, ForeignKey("users.id"))
     image_url = Column(String(500), nullable=True)
     detected_food = Column(String(200), nullable=True)
     calories = Column(Float, nullable=True)

@@ -41,6 +41,17 @@ const authService = {
     return response.data;
   },
 
+  // ── Email verification (one-time code sent at signup) ────────────────────
+  verifyOtp: async (email, otp) => {
+    const response = await api.post('/auth/verify-otp', { email, otp });
+    return response.data;
+  },
+
+  resendOtp: async (email) => {
+    const response = await api.post('/auth/resend-otp', { email });
+    return response.data;
+  },
+
   logout: () => {
     localStorage.removeItem('token');
   },

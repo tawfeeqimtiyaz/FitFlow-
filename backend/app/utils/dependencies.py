@@ -2,6 +2,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from uuid import UUID
 from app.database import get_db
 from app.utils.security import decode_access_token
 from app.models.user import User
@@ -31,15 +32,15 @@ async def get_current_user(
     if user_id is None:
         raise credentials_exception
 
-    # ✅ FIXED: Convert string → int before querying
-    #    User.id is Integer
+    # User.id is a UUID, so the token's string `sub` must be converted
+    # before querying; a malformed `sub` is treated as invalid credentials.
     try:
-        user_int_id = int(user_id)
-    except ValueError:
-        raise credentials_exception          # ✅ Catches malformed token sub
+        user_uuid = UUID(user_id)
+    except (ValueError, AttributeError, TypeError):
+        raise credentials_exception
 
     result = await db.execute(
-        select(User).where(User.id == user_int_id)  # ✅ int vs int
+        select(User).where(User.id == user_uuid)
     )
     user = result.scalar_one_or_none()
 

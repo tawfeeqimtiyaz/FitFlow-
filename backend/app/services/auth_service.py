@@ -1,12 +1,25 @@
+from datetime import timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from typing import Optional
+from app.config import settings
+from app.models.email_verification import EmailVerification
 from app.models.user import User, UserProfile
 from app.schemas.user import UserCreate
+from app.utils.ids import to_uuid
 from app.utils.security import hash_password, verify_password, create_access_token
+from app.utils.timeutil import as_utc, utc_now
 
 
 class AuthService:
+
+    @staticmethod
+    def _is_reclaimable(user: User) -> bool:
+        """True for an unverified signup older than UNVERIFIED_ACCOUNT_TTL_HOURS."""
+        if not settings.EMAIL_VERIFICATION_REQUIRED or user.is_verified:
+            return False
+        age = utc_now() - as_utc(user.created_at)
+        return age >= timedelta(hours=settings.UNVERIFIED_ACCOUNT_TTL_HOURS)
 
     @staticmethod
     async def create_user(db: AsyncSession, user_data: UserCreate) -> User:
@@ -17,6 +30,19 @@ class AuthService:
         existing_user = result.scalar_one_or_none()
 
         if existing_user:
+            if AuthService._is_reclaimable(existing_user):
+                # An old, never-verified signup must not block the real owner
+                # of the address: reset it to the new signup's password.
+                existing_user.hashed_password = hash_password(user_data.password)
+                existing_user.created_at = utc_now()
+                # The previous attempt's code, cooldown and send counter must not
+                # carry over to the new owner.
+                await db.execute(
+                    delete(EmailVerification).where(EmailVerification.user_id == existing_user.id)
+                )
+                await db.commit()
+                await db.refresh(existing_user)
+                return existing_user
             raise ValueError("Email already registered")
 
         # Backfill a username from email because the User model requires it
@@ -37,7 +63,9 @@ class AuthService:
         user = User(
             email=user_data.email,
             username=username,
-            hashed_password=hash_password(user_data.password)
+            hashed_password=hash_password(user_data.password),
+            # With verification off (local dev) accounts behave as before.
+            is_verified=not settings.EMAIL_VERIFICATION_REQUIRED,
         )
 
         db.add(user)
@@ -92,5 +120,5 @@ class AuthService:
         db: AsyncSession, user_id: str
     ) -> Optional[User]:
         """Get user by ID"""
-        result = await db.execute(select(User).where(User.id == user_id))
+        result = await db.execute(select(User).where(User.id == to_uuid(user_id)))
         return result.scalar_one_or_none()

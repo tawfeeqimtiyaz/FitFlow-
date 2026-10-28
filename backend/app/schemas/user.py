@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 from datetime import datetime
+from uuid import UUID
 
 
 # --- User Schemas ---
@@ -19,10 +20,26 @@ class GoogleLogin(BaseModel):
     token: str
 
 
+class VerifyOtpRequest(BaseModel):
+    email: EmailStr
+    # Plain str on purpose: format is checked in the service so a bad value
+    # never gets echoed back in a validation error.
+    otp: str
+
+
+class ResendOtpRequest(BaseModel):
+    email: EmailStr
+
+
+class MessageResponse(BaseModel):
+    message: str
+
+
 class UserResponse(BaseModel):
-    id: int
+    id: UUID
     email: str
     is_active: bool
+    is_verified: bool = False
     created_at: datetime
     auth_provider: Optional[str] = None  # ✅ Not in model, kept optional
 
@@ -60,8 +77,8 @@ class ProfileUpdate(BaseModel):
 
 
 class ProfileResponse(BaseModel):
-    id: int
-    user_id: int
+    id: UUID
+    user_id: UUID
     username: Optional[str] = None       # ✅ Added default
     age: Optional[int] = None            # ✅ Added default
     height: Optional[float] = None       # ✅ Added default
@@ -90,7 +107,7 @@ class ProfileResponse(BaseModel):
 
 
 class UserWithProfile(BaseModel):
-    id: int
+    id: UUID
     email: str
     profile: Optional[ProfileResponse] = None  # ✅ Added default
 

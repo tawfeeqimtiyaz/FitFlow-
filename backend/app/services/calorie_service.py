@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import Optional, List
 from datetime import date, datetime
+from uuid import UUID
 
 from app.models.calorie import UserGoal, MealLog, DailyIntake, WaterLog
 from app.models.user import UserProfile
@@ -14,8 +15,8 @@ class CalorieService:
     @staticmethod
     async def get_or_create_goal(db: AsyncSession, user_id: str) -> UserGoal:
         """Get user's goal or create default one"""
-        # ✅ FIXED: Cast string → int for user lookup
-        user_uuid = int(user_id)
+        # Cast string → UUID for user lookup
+        user_uuid = UUID(user_id)
 
         result = await db.execute(
             select(UserGoal).where(UserGoal.user_id == user_uuid)
@@ -44,7 +45,7 @@ class CalorieService:
         db: AsyncSession, user_id: str, goal_data: GoalCreate
     ) -> UserGoal:
         """Create or update user's nutrition goal"""
-        user_uuid = int(user_id)                   # ✅ FIXED: int cast
+        user_uuid = UUID(user_id)                   # str -> UUID
 
         result = await db.execute(
             select(UserGoal).where(UserGoal.user_id == user_uuid)
@@ -98,7 +99,7 @@ class CalorieService:
         db: AsyncSession, user_id: str, goal_data: GoalUpdate
     ) -> Optional[UserGoal]:
         """Update user's nutrition goal"""
-        user_uuid = int(user_id)                   # ✅ FIXED: int cast
+        user_uuid = UUID(user_id)                   # str -> UUID
 
         result = await db.execute(
             select(UserGoal).where(UserGoal.user_id == user_uuid)
@@ -122,7 +123,7 @@ class CalorieService:
         db: AsyncSession, user_id: str, meal_data: MealLogCreate
     ) -> MealLog:
         """Log a meal entry"""
-        user_uuid = int(user_id)                   # ✅ FIXED: int cast
+        user_uuid = UUID(user_id)                   # str -> UUID
         meal_date = meal_data.meal_date or date.today()
 
         meal = MealLog(
@@ -154,7 +155,7 @@ class CalorieService:
 
     @staticmethod
     async def _update_daily_intake(
-        db: AsyncSession, user_id: int, intake_date: date   # ✅ int type hint
+        db: AsyncSession, user_id: UUID, intake_date: date
     ):
         """Update daily intake totals"""
         result = await db.execute(
@@ -206,7 +207,7 @@ class CalorieService:
         db: AsyncSession, user_id: str, meal_date: date
     ) -> List[MealLog]:
         """Get all meals for a specific date"""
-        user_uuid = int(user_id)                   # ✅ FIXED: int cast
+        user_uuid = UUID(user_id)                   # str -> UUID
 
         result = await db.execute(
             select(MealLog).where(
@@ -221,7 +222,7 @@ class CalorieService:
         db: AsyncSession, user_id: str, intake_date: date
     ) -> Optional[DailyIntake]:
         """Get daily intake for a specific date"""
-        user_uuid = int(user_id)                   # ✅ FIXED: int cast
+        user_uuid = UUID(user_id)                   # str -> UUID
 
         result = await db.execute(
             select(DailyIntake).where(
@@ -290,7 +291,7 @@ class CalorieService:
         db: AsyncSession, user_id: str, water_data: WaterLogCreate
     ) -> WaterLog:
         """Log water intake"""
-        user_uuid = int(user_id)                   # ✅ FIXED: int cast
+        user_uuid = UUID(user_id)                   # str -> UUID
         log_date  = date.today()
 
         water_log = WaterLog(
@@ -308,7 +309,7 @@ class CalorieService:
 
     @staticmethod
     async def _update_daily_water(
-        db: AsyncSession, user_id: int, log_date: date   # ✅ int type hint
+        db: AsyncSession, user_id: UUID, log_date: date
     ):
         """Update daily water intake total"""
         result = await db.execute(
@@ -348,7 +349,7 @@ class CalorieService:
         excess_calories = -(progress["calories_remaining"])
 
         profile_result = await db.execute(
-            select(UserProfile).where(UserProfile.user_id == int(user_id))   # ✅
+            select(UserProfile).where(UserProfile.user_id == UUID(user_id))   # ✅
         )
         profile = profile_result.scalar_one_or_none()
         fitness_level = profile.fitness_level if profile else "beginner"
@@ -384,15 +385,16 @@ class CalorieService:
         db: AsyncSession, user_id: str, meal_id: str
     ) -> bool:
         """Delete a meal log"""
-        # ✅ FIXED: Both IDs cast to UUID
+        # Both IDs cast to UUID; a malformed id simply means "not found"
         try:
-            user_uuid = int(user_id)
+            user_uuid = UUID(user_id)
+            meal_uuid = UUID(meal_id)
         except ValueError:
             return False
 
         result = await db.execute(
             select(MealLog).where(
-                MealLog.id      == meal_id,
+                MealLog.id      == meal_uuid,
                 MealLog.user_id == user_uuid
             )
         )

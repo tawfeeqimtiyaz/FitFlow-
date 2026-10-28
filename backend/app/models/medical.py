@@ -1,6 +1,6 @@
 from sqlalchemy import (
     Boolean, Column, Integer, String,
-    DateTime, Float, Text, ForeignKey, Date, Time
+    DateTime, Float, Text, ForeignKey, Date, Time, Uuid
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -11,7 +11,7 @@ class Symptom(Base):
     __tablename__ = "symptoms"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(Uuid, ForeignKey("users.id"), nullable=False)
     name = Column(String, nullable=False)
     severity = Column(Integer, nullable=True)  # 1-10 scale
     description = Column(Text, nullable=True)
@@ -27,7 +27,7 @@ class DoctorVisit(Base):
     __tablename__ = "doctor_visits"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(Uuid, ForeignKey("users.id"), nullable=False)
     doctor_name = Column(String, nullable=False)
     specialty = Column(String, nullable=True)
     visit_date = Column(Date, nullable=False)
@@ -46,7 +46,7 @@ class Medication(Base):
     __tablename__ = "medications"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(Uuid, ForeignKey("users.id"), nullable=False)
     name = Column(String, nullable=False)
     dosage = Column(String, nullable=True)
     frequency = Column(String, nullable=True)
@@ -67,7 +67,7 @@ class MedicationReminder(Base):
     __tablename__ = "medication_reminders"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(Uuid, ForeignKey("users.id"), nullable=False)
     medication_id = Column(Integer, ForeignKey("medications.id"), nullable=False)
     reminder_time = Column(Time, nullable=False)
     is_active = Column(Boolean, default=True)

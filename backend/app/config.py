@@ -40,6 +40,8 @@ class Settings(BaseSettings):
 
     # ✅ ADDED: Gemini API
     GEMINI_API_KEY: Optional[str] = None
+    # Override via env when Google retires or replaces the model.
+    GEMINI_MODEL: str = "gemini-3.6-flash"
 
     # Google OAuth
     GOOGLE_CLIENT_ID: Optional[str] = None
@@ -47,6 +49,33 @@ class Settings(BaseSettings):
 
     # Frontend
     FRONTEND_URL: str = "http://localhost:3000"
+
+    # ── Email verification (OTP) ──────────────────────────────────────────
+    # When True, new accounts must confirm a one-time code emailed to them
+    # before they can log in. Set False only for local development without SMTP.
+    EMAIL_VERIFICATION_REQUIRED: bool = True
+
+    # SMTP provider. Nothing here has a usable default on purpose: delivery is
+    # reported as "not configured" until the host and a valid sender are set.
+    EMAIL_FROM: Optional[str] = None            # e.g. no-reply@your-domain.tld
+    EMAIL_FROM_NAME: str = "FitFlow"
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_USE_SSL: bool = False                  # implicit TLS (usually port 465)
+    SMTP_USE_STARTTLS: bool = True              # explicit TLS (usually port 587)
+    SMTP_TIMEOUT_SECONDS: int = 10
+
+    # OTP policy
+    OTP_LENGTH: int = 6
+    OTP_EXPIRE_MINUTES: int = 10
+    OTP_MAX_ATTEMPTS: int = 5                   # wrong guesses before the code is locked
+    OTP_RESEND_COOLDOWN_SECONDS: int = 60
+    OTP_MAX_SENDS_PER_HOUR: int = 5
+    # An unverified signup older than this may be re-claimed by a new signup,
+    # so nobody can squat on someone else's email address forever.
+    UNVERIFIED_ACCOUNT_TTL_HOURS: int = 24
 
     model_config = {
         "env_file": BASE_DIR / ".env",
