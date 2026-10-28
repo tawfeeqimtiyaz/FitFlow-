@@ -11,7 +11,6 @@
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-asyncpg-4169E1?logo=postgresql&logoColor=white)
 ![Gemini](https://img.shields.io/badge/Google-Gemini-8E75B2?logo=googlegemini&logoColor=white)
 ![Clarifai](https://img.shields.io/badge/Clarifai-Food_Recognition-FF6B00)
-![AWS](https://img.shields.io/badge/Deploy-AWS-FF9900?logo=amazonaws&logoColor=white)
 
 </div>
 
@@ -28,10 +27,9 @@
 7. [Project Structure](#7-project-structure)
 8. [Local Development](#8-local-development)
 9. [Configuration](#9-configuration)
-10. [Deploying to AWS](#10-deploying-to-aws)
-11. [Security & Compliance](#11-security--compliance)
-12. [Known Limitations & Roadmap](#12-known-limitations--roadmap)
-13. [Disclaimer](#13-disclaimer)
+10. [Security & Compliance](#10-security--compliance)
+11. [Known Limitations & Roadmap](#11-known-limitations--roadmap)
+12. [Disclaimer](#12-disclaimer)
 
 ---
 
@@ -457,306 +455,17 @@ cd frontend && npm test        # Jest + React Testing Library
 
 ---
 
-## 10. Deploying to AWS
-
-### 10.1 Target architecture
-
-```mermaid
-flowchart TB
-    User((Users)) --> R53[Route 53<br/>fitflow.example.com<br/>api.fitflow.example.com]
-    R53 --> CF[CloudFront + ACM TLS<br/>SPA hosting]
-    CF --> S3[(S3 bucket<br/>React build, private, OAC)]
-    R53 --> ALB[Application Load Balancer<br/>HTTPS :443, ACM cert]
-    subgraph VPC
-        subgraph Public subnets
-            ALB
-            NAT[NAT Gateway]
-        end
-        subgraph Private subnets
-            ECS[ECS Fargate service<br/>FastAPI container ×2+<br/>autoscaling]
-            RDS[(RDS PostgreSQL<br/>Multi-AZ, encrypted)]
-        end
-    end
-    ALB --> ECS --> RDS
-    ECS -- outbound via NAT --> AI[[Gemini / Clarifai APIs]]
-    SM[Secrets Manager] -. injected at task start .-> ECS
-    ECS -. logs/metrics .-> CW[CloudWatch]
-    ECR[(ECR image registry)] -. pull .-> ECS
-```
-
-| Concern | AWS service | Why |
-|---|---|---|
-| Static frontend | **S3 + CloudFront** | Global CDN, cheap, HTTPS, SPA fallback routing |
-| API compute | **ECS on Fargate** behind an **ALB** | Serverless containers, rolling deploys, autoscaling, health checks on `/health` |
-| Database | **RDS for PostgreSQL** | Managed backups, Multi-AZ, encryption at rest. The app already ships `asyncpg`. |
-| Secrets | **Secrets Manager** | `SECRET_KEY`, `DATABASE_URL` and AI keys never live in images or git |
-| Images | **ECR** | Private container registry with image scanning |
-| TLS / DNS | **ACM + Route 53** | Free certificates and managed DNS |
-| Observability | **CloudWatch Logs, Metrics, Alarms** | Container logs, 5xx and latency alarms |
-| Protection (recommended) | **AWS WAF** on CloudFront and the ALB | Rate-limit the AI endpoints, managed rule sets |
-
-> **Simpler alternatives:** **AWS Amplify Hosting** can replace S3 + CloudFront for the frontend with Git-push deploys. **AWS App Runner** can replace ECS + ALB for the backend: point it at the ECR image, set the env/secrets, and it handles TLS and scaling. On a tight budget, see [§10.10](#1010-budget-option-single-ec2-instance).
-
-### 10.2 Pre-flight checklist (do this first)
-
-- [ ] **Fix the PostgreSQL schema blockers** in [§12](#12-known-limitations--roadmap). The medical tables use an `Integer` `user_id` that references a `UUID` key, so `create_all` fails on PostgreSQL. `UserProfile` is also missing `fitness_level` and `profile_image`.
-- [ ] Update the Gemini model id (`gemini-1.5-flash` has been retired) in `ai_service.py` and `food_ai_service.py`.
-- [ ] Set `DEBUG=False`.
-- [ ] Generate a new `SECRET_KEY`, and rotate every key that has ever been committed to git.
-- [ ] Make sure `backend/.env` is **not** tracked (`git rm --cached backend/.env`).
-
-### 10.3 Containerise the backend
-
-Create `backend/Dockerfile`:
-
-```dockerfile
-FROM python:3.11-slim
-
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
-WORKDIR /app
-
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY app ./app
-
-RUN useradd --create-home appuser
-USER appuser
-
-EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2", "--proxy-headers"]
-```
-
-Create `backend/.dockerignore`:
-
-```
-venv/
-__pycache__/
-*.db
-.env
-```
-
-Test locally:
-
-```bash
-docker build -t fitflow-api ./backend
-docker run --rm -p 8000:8000 --env-file backend/.env fitflow-api
-```
-
-### 10.4 Push the image to ECR
-
-```bash
-export AWS_REGION=ap-south-1                      # choose your region
-export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-export ECR=$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
-
-aws ecr create-repository --repository-name fitflow-api --image-scanning-configuration scanOnPush=true
-aws ecr get-login-password | docker login --username AWS --password-stdin $ECR
-
-docker build -t $ECR/fitflow-api:v1 ./backend
-docker push $ECR/fitflow-api:v1
-```
-
-### 10.5 Networking and database
-
-1. **VPC**: use the VPC wizard ("VPC and more") to create 2 AZs, 2 public subnets, 2 private subnets and 1 NAT gateway. The NAT gateway lets private tasks reach the Gemini and Clarifai APIs.
-2. **Security groups**:
-   - `sg-alb`: inbound 443 (and 80 for redirect) from `0.0.0.0/0`
-   - `sg-api`: inbound 8000 **from `sg-alb` only**
-   - `sg-db`: inbound 5432 **from `sg-api` only**
-3. **RDS PostgreSQL 16**: private subnet group, `sg-db`, storage encryption on, automated backups of 7+ days, Multi-AZ for production, and no public access.
-
-```bash
-aws rds create-db-instance \
-  --db-instance-identifier fitflow-db \
-  --engine postgres --engine-version 16 \
-  --db-instance-class db.t4g.micro \
-  --allocated-storage 20 --storage-encrypted \
-  --master-username fitflow --manage-master-user-password \
-  --db-name fitflow \
-  --vpc-security-group-ids <sg-db> \
-  --db-subnet-group-name <private-subnet-group> \
-  --no-publicly-accessible --backup-retention-period 7
-```
-
-The connection string format is:
-
-```
-postgresql+asyncpg://fitflow:<password>@<rds-endpoint>:5432/fitflow?ssl=require
-```
-
-### 10.6 Secrets
-
-```bash
-aws secretsmanager create-secret --name fitflow/prod --secret-string '{
-  "DATABASE_URL":   "postgresql+asyncpg://fitflow:<pw>@<endpoint>:5432/fitflow?ssl=require",
-  "SECRET_KEY":     "<64+ random chars>",
-  "GEMINI_API_KEY": "<key>",
-  "CLARIFAI_PAT":   "<pat>"
-}'
-```
-
-### 10.7 ECS Fargate service + ALB
-
-1. **Cluster**: `aws ecs create-cluster --cluster-name fitflow`
-2. **IAM**: the task *execution* role needs `AmazonECSTaskExecutionRolePolicy` plus `secretsmanager:GetSecretValue` on `fitflow/prod*`.
-3. **Task definition** (`taskdef.json`, abridged):
-
-```json
-{
-  "family": "fitflow-api",
-  "networkMode": "awsvpc",
-  "requiresCompatibilities": ["FARGATE"],
-  "cpu": "512",
-  "memory": "1024",
-  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/ecsTaskExecutionRole",
-  "containerDefinitions": [{
-    "name": "api",
-    "image": "<ECR>/fitflow-api:v1",
-    "portMappings": [{ "containerPort": 8000 }],
-    "environment": [
-      { "name": "DEBUG",        "value": "False" },
-      { "name": "APP_NAME",     "value": "FitFlow" },
-      { "name": "FRONTEND_URL", "value": "https://fitflow.example.com" }
-    ],
-    "secrets": [
-      { "name": "DATABASE_URL",   "valueFrom": "arn:aws:secretsmanager:<region>:<acct>:secret:fitflow/prod:DATABASE_URL::" },
-      { "name": "SECRET_KEY",     "valueFrom": "arn:aws:secretsmanager:<region>:<acct>:secret:fitflow/prod:SECRET_KEY::" },
-      { "name": "GEMINI_API_KEY", "valueFrom": "arn:aws:secretsmanager:<region>:<acct>:secret:fitflow/prod:GEMINI_API_KEY::" },
-      { "name": "CLARIFAI_PAT",   "valueFrom": "arn:aws:secretsmanager:<region>:<acct>:secret:fitflow/prod:CLARIFAI_PAT::" }
-    ],
-    "logConfiguration": {
-      "logDriver": "awslogs",
-      "options": {
-        "awslogs-group": "/ecs/fitflow-api",
-        "awslogs-region": "<region>",
-        "awslogs-stream-prefix": "api",
-        "awslogs-create-group": "true"
-      }
-    }
-  }]
-}
-```
-
-```bash
-aws ecs register-task-definition --cli-input-json file://taskdef.json
-```
-
-4. **Load balancer**: create an internet-facing ALB in the public subnets with `sg-alb`. Add a target group of type `ip` on port 8000 with health check path **`/health`**. Add an HTTPS :443 listener with an ACM certificate for `api.fitflow.example.com`, and an HTTP :80 listener that redirects to 443.
-5. **Service**: launch type Fargate, private subnets, `sg-api`, no public IP, desired count 2, attached to the target group. Enable the **deployment circuit breaker with rollback**. Add target-tracking autoscaling at about 60% CPU, with 2–6 tasks.
-6. **DNS**: create a Route 53 alias record `api.fitflow.example.com` → the ALB.
-
-Verify with `curl https://api.fitflow.example.com/health`.
-
-### 10.8 Frontend: S3 + CloudFront
-
-```bash
-cd frontend
-REACT_APP_API_URL=https://api.fitflow.example.com/api npm run build
-
-aws s3 mb s3://fitflow-web-<unique>
-aws s3 sync build/ s3://fitflow-web-<unique> --delete \
-  --cache-control "public,max-age=31536000,immutable" --exclude index.html
-aws s3 cp build/index.html s3://fitflow-web-<unique>/index.html \
-  --cache-control "no-cache"
-```
-
-Set up the CloudFront distribution:
-- **Origin**: the S3 bucket with **Origin Access Control**. Keep the bucket private and block all public access.
-- **Default root object**: `index.html`.
-- **Custom error responses** (required for React Router deep links such as `/calories`): map **403 → `/index.html` (200)** and **404 → `/index.html` (200)**.
-- **Viewer protocol**: redirect HTTP to HTTPS. Add the ACM certificate (it must be issued in **us-east-1**) and the alternate domain `fitflow.example.com`.
-- Add a Route 53 alias `fitflow.example.com` → the distribution.
-
-After each deploy, invalidate `index.html`:
-
-```bash
-aws cloudfront create-invalidation --distribution-id <ID> --paths "/index.html"
-```
-
-The camera capture on the Calories page uses `getUserMedia`, which browsers only allow over **HTTPS**. CloudFront provides that.
-
-### 10.9 CI/CD with GitHub Actions (OIDC, no long-lived keys)
-
-`.github/workflows/deploy.yml` (sketch):
-
-```yaml
-name: deploy
-on: { push: { branches: [main] } }
-permissions: { id-token: write, contents: read }
-
-jobs:
-  api:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: aws-actions/configure-aws-credentials@v4
-        with: { role-to-assume: "${{ secrets.AWS_DEPLOY_ROLE }}", aws-region: ap-south-1 }
-      - uses: aws-actions/amazon-ecr-login@v2
-        id: ecr
-      - run: |
-          IMG=${{ steps.ecr.outputs.registry }}/fitflow-api:${{ github.sha }}
-          docker build -t $IMG ./backend && docker push $IMG
-          echo "IMG=$IMG" >> $GITHUB_ENV
-      - uses: aws-actions/amazon-ecs-render-task-definition@v1
-        id: td
-        with: { task-definition: taskdef.json, container-name: api, image: "${{ env.IMG }}" }
-      - uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.td.outputs.task-definition }}
-          service: fitflow-api
-          cluster: fitflow
-          wait-for-service-stability: true
-
-  web:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm, cache-dependency-path: frontend/package-lock.json }
-      - uses: aws-actions/configure-aws-credentials@v4
-        with: { role-to-assume: "${{ secrets.AWS_DEPLOY_ROLE }}", aws-region: ap-south-1 }
-      - run: |
-          cd frontend && npm ci
-          REACT_APP_API_URL=https://api.fitflow.example.com/api npm run build
-          aws s3 sync build/ s3://${{ secrets.WEB_BUCKET }} --delete
-          aws cloudfront create-invalidation --distribution-id ${{ secrets.CF_DIST_ID }} --paths "/index.html"
-```
-
-### 10.10 Budget option: single EC2 instance
-
-This option is for demos, portfolios and student projects:
-
-1. Launch a **t3.small** (Amazon Linux 2023 or Ubuntu) with an Elastic IP. Open ports 22 (your IP only), 80 and 443.
-2. Install Docker and run the API container. Use the instance's local PostgreSQL in Docker, or RDS on the free tier.
-3. Put **Nginx** in front: serve `frontend/build/` as static files with `try_files $uri /index.html;`, and `proxy_pass` `/api/` to `127.0.0.1:8000`. In that setup, build the frontend with `REACT_APP_API_URL=/api`.
-4. Use **Certbot** for a free Let's Encrypt certificate, which the HTTPS camera access needs.
-
-This trades high availability for a much lower and simpler bill. Move to the ECS architecture when you need uptime guarantees.
-
-### 10.11 Operations
-
-- **Logs**: CloudWatch log group `/ecs/fitflow-api`.
-- **Alarms**: ALB `HTTPCode_Target_5XX_Count`, `TargetResponseTime` p95, ECS CPU/memory, RDS `FreeStorageSpace` and `CPUUtilization`.
-- **Backups**: RDS automated backups plus a manual snapshot before each schema change.
-- **Cost control**: AWS Budgets alert. Rate-limit `/api/calorie/quick-analyze` and `/api/medical/chat` with WAF, because they call paid third-party AI APIs.
-
----
-
-## 11. Security & Compliance
+## 10. Security & Compliance
 
 - Passwords are hashed with **bcrypt**. JWTs are signed with `SECRET_KEY`, and every protected route validates the token, the user's existence and the active flag.
 - Every query is scoped to `current_user.id`, so users can only read or modify their own records.
-- **Never commit `.env` files.** Store production secrets in AWS Secrets Manager, and rotate any key that has appeared in git history.
-- Health data (symptoms, diagnoses, medications) is sensitive. Encrypt it at rest (RDS encryption), enforce TLS everywhere, restrict database access to the API security group, and enable CloudTrail. If you operate under **HIPAA**, **GDPR** or India's **DPDP Act**, review the data-retention, consent and BAA requirements before launch.
+- **Never commit `.env` files.** Keep production secrets in your hosting platform's secret store, and rotate any key that has appeared in git history.
+- Health data (symptoms, diagnoses, medications) is sensitive. Encrypt it at rest, enforce TLS everywhere, and restrict database access to the API server only. If you operate under **HIPAA**, **GDPR** or India's **DPDP Act**, review the data-retention, consent and BAA requirements before launch.
 - Restrict CORS to your production domain through `FRONTEND_URL`.
 
 ---
 
-## 12. Known Limitations & Roadmap
+## 11. Known Limitations & Roadmap
 
 FitFlow AI is under active development. The table lists known gaps with recommended fixes.
 
@@ -773,11 +482,11 @@ FitFlow AI is under active development. The table lists known gaps with recommen
 | **Post-meal decision UI** | `/api/calorie/balance` is not yet surfaced on the Calories page | Add a "Burn it off" card in the Progress tab |
 | **Auth** | JWT in `localStorage`, 30-minute tokens with no refresh, Google OAuth config unused | Refresh tokens or httpOnly cookies, then Google sign-in |
 | **AI key handling** | The Gemini key is sent as a URL query parameter | Send it in the `x-goog-api-key` header |
-| **Quality** | No backend tests or CI | pytest + httpx `AsyncClient`, plus the GitHub Actions pipeline in §10.9 |
+| **Quality** | No backend tests or CI | pytest + httpx `AsyncClient`, run on every push with GitHub Actions |
 
 ---
 
-## 13. Disclaimer
+## 12. Disclaimer
 
 FitFlow AI's medical assistant provides **general wellness guidance only**. It is **not a medical device** and is **not a substitute for professional diagnosis or treatment**. Anyone with chest pain, palpitations, fainting or other severe symptoms should seek emergency care immediately.
 
