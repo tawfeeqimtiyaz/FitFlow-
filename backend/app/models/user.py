@@ -1,4 +1,7 @@
+import uuid
+
 from sqlalchemy import Boolean, Column, Integer, String, DateTime, Float, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from ..database import Base
@@ -7,7 +10,7 @@ from ..database import Base
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     username = Column(String, unique=True, index=True, nullable=True)
     hashed_password = Column(String, nullable=False)
@@ -35,8 +38,8 @@ class User(Base):
 class UserProfile(Base):
     __tablename__ = "user_profiles"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, unique=True)
 
     # Personal Info
     age = Column(Integer, nullable=True)

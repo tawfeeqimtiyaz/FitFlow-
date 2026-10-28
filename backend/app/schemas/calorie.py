@@ -177,7 +177,7 @@ class DailyIntakeResponse(BaseModel):
 class DailyProgressResponse(BaseModel):
     date:                date
     goals:               Optional[GoalResponse] = None
-    intake:              Any                    # ✅ dict or DailyIntake ORM
+    intake:              Any                    #  dict or DailyIntake ORM
     calories_remaining:  float
     protein_remaining:   float
     carbs_remaining:     float

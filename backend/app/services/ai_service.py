@@ -1,11 +1,18 @@
 from typing import Dict, List, Optional
 import random
-import google.generativeai as genai
 from app.config import settings
 
+try:
+    import google.generativeai as genai
+except Exception:
+    genai = None
+
 # ── Configure Gemini ──────────────────────────────────────────────────────────
-if settings.GEMINI_API_KEY:
-    genai.configure(api_key=settings.GEMINI_API_KEY)
+if genai is not None and settings.GEMINI_API_KEY:
+    try:
+        genai.configure(api_key=settings.GEMINI_API_KEY)
+    except Exception:
+        genai = None
 
 
 class AIService:
@@ -69,8 +76,8 @@ You are part of a fitness app so always tie advice back to safe fitness practice
         Falls back to keyword-based logic if Gemini API key is not set.
         """
 
-        if not settings.GEMINI_API_KEY:
-            # Fallback to keyword logic if no API key
+        if not settings.GEMINI_API_KEY or genai is None:
+            # Fallback to keyword logic if no API key or Gemini runtime is unavailable
             return AIService._keyword_chat(message, context)
 
         try:

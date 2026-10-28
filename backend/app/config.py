@@ -1,5 +1,9 @@
+from pathlib import Path
 from pydantic_settings import BaseSettings
 from typing import Optional
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
@@ -45,7 +49,7 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
 
     model_config = {
-        "env_file": ".env",
+        "env_file": BASE_DIR / ".env",
         "env_file_encoding": "utf-8",
         "case_sensitive": True,
     }

@@ -19,9 +19,24 @@ class AuthService:
         if existing_user:
             raise ValueError("Email already registered")
 
+        # Backfill a username from email because the User model requires it
+        base_username = user_data.email.split("@")[0].strip().lower()
+        if not base_username:
+            base_username = "user"
+
+        username = base_username
+        counter = 1
+        while True:
+            username_check = await db.execute(select(User).where(User.username == username))
+            if username_check.scalar_one_or_none() is None:
+                break
+            username = f"{base_username}{counter}"
+            counter += 1
+
         # Create user
         user = User(
             email=user_data.email,
+            username=username,
             hashed_password=hash_password(user_data.password)
         )
 
